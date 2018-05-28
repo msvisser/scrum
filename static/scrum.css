@@ -1,0 +1,13 @@
+body {
+    font-family: sans-serif;
+    margin: 20px;
+}
+
+a {
+    margin: 10px;
+    font-size: 20px;
+}
+
+.hidden {
+    display: none;
+}
