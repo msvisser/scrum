@@ -34,17 +34,14 @@ window.onload = function() {
             document.querySelector("#clientcount .num").innerText = clients.length;
         } else if (message.command === 'host_choice') {
             host_choices[message.id] = message.choice;
-            console.log(host_choices);
 
             let el = document.querySelector("#hostoverview > ul");
             while(el.hasChildNodes()){
                 el.removeChild(el.lastChild);
             }
             for (let key in host_choices) {
-                console.log(key);
                 for (let c of clients) {
                     if (c.id == key) {
-                        console.log(host_choices[key]);
                         let li = document.createElement('li');
                         li.innerText = c.name + ': ' + host_choices[key];
                         el.appendChild(li);
