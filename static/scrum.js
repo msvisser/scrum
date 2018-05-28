@@ -8,6 +8,7 @@ function hideAll() {
 window.onload = function() {
     let sock = new WebSocket("ws://" + window.location.host + "/ws");
     let clients = undefined;
+    let host_choices = {};
 
     sock.addEventListener("open", () => {
         document.querySelector("#start > .connecting").classList.add("hidden");
@@ -32,15 +33,28 @@ window.onload = function() {
             clients = message.clients;
             document.querySelector("#clientcount .num").innerText = clients.length;
         } else if (message.command === 'host_choice') {
-            for (let c of clients) {
-                if (c.id === message.id) {
-                    let li = document.createElement('li');
-                    li.innerText = c.name + ': ' + message.choice;
-                    document.querySelector('#hostoverview > ul').appendChild(li);
-                    break;
+            host_choices[message.id] = message.choice;
+            console.log(host_choices);
+
+            let el = document.querySelector("#hostoverview > ul");
+            while(el.hasChildNodes()){
+                el.removeChild(el.lastChild);
+            }
+            for (let key in host_choices) {
+                console.log(key);
+                for (let c of clients) {
+                    if (c.id == key) {
+                        console.log(host_choices[key]);
+                        let li = document.createElement('li');
+                        li.innerText = c.name + ': ' + host_choices[key];
+                        el.appendChild(li);
+                        break;
+                    }
                 }
             }
         } else if (message.command === 'reveal') {
+            document.getElementById("choose").classList.add("hidden");
+            document.getElementById("reveal").classList.remove("hidden");
             let ul = document.querySelector('#reveal > ul');
 
             for (let rvd of message.data) {
@@ -60,6 +74,9 @@ window.onload = function() {
             while(el.hasChildNodes()){
                 el.removeChild(el.lastChild);
             }
+            document.querySelectorAll("#choose .select li").forEach(li => {
+                li.classList.remove("highlight");
+            });
         }
     });
 
@@ -85,6 +102,7 @@ window.onload = function() {
         sock.send(JSON.stringify({
             command: 'host_next',
         }));
+        host_choices = {};
     });
 
     document.querySelector("#hostoverview > .reveal").addEventListener('click', () => {
@@ -113,8 +131,10 @@ window.onload = function() {
 
     document.querySelectorAll("#choose .select").forEach(li => {
         li.addEventListener('click', () => {
-            document.getElementById("choose").classList.add("hidden");
-            document.getElementById("reveal").classList.remove("hidden");
+            document.querySelectorAll("#choose .select li").forEach(li => {
+                li.classList.remove("highlight");
+            });
+            li.querySelector('li').classList.add("highlight");
             document.querySelector("#reveal .choice").innerText = li.innerText;
             sock.send(JSON.stringify({
                 command: 'choose',

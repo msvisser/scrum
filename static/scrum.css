@@ -46,6 +46,10 @@ a {
     float: left;
 }
 
+#choose li.highlight {
+    background-color: #e57373;
+}
+
 .hidden {
     display: none;
 }
