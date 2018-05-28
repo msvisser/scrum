@@ -1,12 +1,12 @@
 function hideAll() {
-    document.querySelectorAll("body > div").forEach(e => {
+    document.querySelectorAll("#container > div").forEach(e => {
         e.classList.add("hidden");
     });
 }
 
 
 window.onload = function() {
-    let sock = new WebSocket("wss://" + window.location.host + "/ws");
+    let sock = new WebSocket("ws://" + window.location.host + "/ws");
     let clients = undefined;
 
     sock.addEventListener("open", () => {
@@ -16,6 +16,7 @@ window.onload = function() {
     sock.addEventListener("close", () => {
         hideAll();
         document.getElementById("lost").classList.remove("hidden");
+        document.querySelector("#clientcount .num").innerText = '';
     });
 
     sock.addEventListener('message', (msg) => {
@@ -23,11 +24,13 @@ window.onload = function() {
 
         if (message.command === 'new_session') {
             document.querySelector("#hostid > .id").innerText = message.id;
+            document.querySelector("#clientcount .hostid").innerText = message.id;
             document.getElementById("hostid").classList.remove("hidden");
         } else if (message.command === 'join_session') {
             document.getElementById("choose").classList.remove("hidden");
         } else if (message.command === 'clients') {
             clients = message.clients;
+            document.querySelector("#clientcount .num").innerText = clients.length;
         } else if (message.command === 'host_choice') {
             for (let c of clients) {
                 if (c.id === message.id) {
@@ -100,6 +103,7 @@ window.onload = function() {
         let value = document.querySelector("#joinid > .id").value;
         let name = document.querySelector("#joinid > .name").value;
 
+        document.querySelector("#clientcount .hostid").innerText = value;
         sock.send(JSON.stringify({
             command: 'join_session',
             id: value,
@@ -107,7 +111,7 @@ window.onload = function() {
         }));
     });
 
-    document.querySelectorAll("#choose > ul > li > a").forEach(li => {
+    document.querySelectorAll("#choose .select").forEach(li => {
         li.addEventListener('click', () => {
             document.getElementById("choose").classList.add("hidden");
             document.getElementById("reveal").classList.remove("hidden");

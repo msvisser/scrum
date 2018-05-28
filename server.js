@@ -1,12 +1,9 @@
 const fs = require('fs');
-const https = require('https');
+const http = require('http');
 const url = require('url');
 const WebSocket = require('ws');
 
-const server = new https.createServer({
-    cert: fs.readFileSync('fullchain.pem'),
-    key: fs.readFileSync('privkey.pem')
-});
+const server = new http.createServer();
 const wss = new WebSocket.Server({ noServer: true });
 
 let sessions = {};
