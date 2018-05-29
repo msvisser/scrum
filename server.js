@@ -104,7 +104,7 @@ wss.on('connection', (ws) => {
                     w.close();
                 }
                 console.log('delete session: ' + ws.sessionId);
-                sessions[ws.sessionId] = undefined;
+                delete sessions[ws.sessionId];
             } else {
                 let sess = sessions[ws.sessionId];
                 if (sess !== undefined) {
