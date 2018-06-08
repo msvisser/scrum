@@ -1,14 +1,24 @@
-function hideAll() {
-    document.querySelectorAll("#container > div").forEach(e => {
-        e.classList.add("hidden");
-    });
-}
-
-
 window.onload = function() {
+    function hideAll() {
+        document.querySelectorAll("#container > div").forEach(e => {
+            e.classList.add("hidden");
+        });
+    }
+
+    function sfunc(a, b) {
+        let ia = parseFloat(a.choice);
+        let ib = parseFloat(b.choice);
+
+        if (isNaN(ib)) return -1;
+        if (isNaN(ia)) return 1;
+        if (ia < ib) return -1;
+        if (ia > ib) return 1;
+        return 0;
+    }
+
     let sock = new WebSocket("ws://" + window.location.host + "/ws");
     let clients = undefined;
-    let host_choices = {};
+    let host_choices = [];
 
     sock.addEventListener("open", () => {
         document.querySelector("#start > .connecting").classList.add("hidden");
@@ -33,27 +43,36 @@ window.onload = function() {
             clients = message.clients;
             document.querySelector("#clientcount .num").innerText = clients.length;
         } else if (message.command === 'host_choice') {
-            host_choices[message.id] = message.choice;
+            host_choices = host_choices.filter((c) => c.id !== message.id);
+            host_choices.push({
+                id: message.id,
+                choice: message.choice,
+            });
+            host_choices.sort(sfunc);
 
             let el = document.querySelector("#hostoverview > ul");
             while(el.hasChildNodes()){
                 el.removeChild(el.lastChild);
             }
-            for (let key in host_choices) {
+            for (let d of host_choices) {
                 for (let c of clients) {
-                    if (c.id == key) {
+                    if (c.id == d.id) {
                         let li = document.createElement('li');
-                        li.innerText = c.name + ': ' + host_choices[key];
+                        li.innerText = c.name + ': ' + d.choice;
                         el.appendChild(li);
                         break;
                     }
                 }
             }
         } else if (message.command === 'reveal') {
-            document.getElementById("choose").classList.add("hidden");
+            hideAll();
             document.getElementById("reveal").classList.remove("hidden");
             let ul = document.querySelector('#reveal > ul');
+            while(ul.hasChildNodes()){
+                ul.removeChild(ul.lastChild);
+            }
 
+            message.data.sort(sfunc);
             for (let rvd of message.data) {
                 for (let c of clients) {
                     if (c.id === rvd.id) {
@@ -65,7 +84,7 @@ window.onload = function() {
                 }
             }
         } else if (message.command === 'next') {
-            document.getElementById("reveal").classList.add("hidden");
+            hideAll();
             document.getElementById("choose").classList.remove("hidden");
             let el = document.querySelector("#reveal > ul");
             while(el.hasChildNodes()){
@@ -74,6 +93,9 @@ window.onload = function() {
             document.querySelectorAll("#choose .select li").forEach(li => {
                 li.classList.remove("highlight");
             });
+        } else if (message.command === 'hackerman') {
+            hideAll();
+            document.getElementById("hackerman").classList.remove("hidden");
         }
     });
 
@@ -99,7 +121,7 @@ window.onload = function() {
         sock.send(JSON.stringify({
             command: 'host_next',
         }));
-        host_choices = {};
+        host_choices = [];
     });
 
     document.querySelector("#hostoverview > .reveal").addEventListener('click', () => {
@@ -126,16 +148,18 @@ window.onload = function() {
         }));
     });
 
-    document.querySelectorAll("#choose .select").forEach(li => {
-        li.addEventListener('click', () => {
+    document.querySelectorAll("#choose .select").forEach(a => {
+        a.addEventListener('click', () => {
             document.querySelectorAll("#choose .select li").forEach(li => {
                 li.classList.remove("highlight");
             });
-            li.querySelector('li').classList.add("highlight");
+            let li = a.querySelector('li');
+            li.classList.add("highlight");
             document.querySelector("#reveal .choice").innerText = li.innerText;
             sock.send(JSON.stringify({
                 command: 'choose',
                 choice: li.innerText,
+                hmac: li.getAttribute("x-hmac"),
             }));
         });
     });

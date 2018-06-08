@@ -2,6 +2,7 @@ const fs = require('fs');
 const http = require('http');
 const url = require('url');
 const WebSocket = require('ws');
+const crypto = require('crypto');
 
 const server = new http.createServer();
 const wss = new WebSocket.Server({ noServer: true });
@@ -32,41 +33,53 @@ wss.on('connection', (ws) => {
         let message = JSON.parse(msg);
 
         if (message.command === 'new_session') {
-            let sessionId = ('0000' + Math.floor(Math.random() * 10000)).slice(-4);
-            console.log("create session: " + sessionId);
-            sessions[sessionId] = {
-                host: ws,
-                clients: [],
-                broadcast: broadcast,
-                sendClients: sendClients,
-            }
-            ws.sessionId = sessionId;
-            ws.host = true;
-            ws.send(JSON.stringify({
-                command: 'new_session',
-                id: sessionId,
-            }));
-        } else if (message.command === 'host_next') {
-            let sess = sessions[ws.sessionId];
-            for (let c of sess.clients) {
-                c.clientChoice = '';
-                c.send(JSON.stringify({
-                    command: 'next',
+            if (ws.sessionId === undefined) {
+                let sessionId = ('0000' + Math.floor(Math.random() * 10000)).slice(-4);
+                console.log("create session: " + sessionId);
+                sessions[sessionId] = {
+                    host: ws,
+                    clients: [],
+                    broadcast: broadcast,
+                    sendClients: sendClients,
+                }
+                ws.sessionId = sessionId;
+                ws.host = true;
+                ws.send(JSON.stringify({
+                    command: 'new_session',
+                    id: sessionId,
                 }));
+            } else {
+                ws.close();
+            }
+        } else if (message.command === 'host_next') {
+            if (ws.sessionId in sessions) {
+                let sess = sessions[ws.sessionId];
+                for (let c of sess.clients) {
+                    c.clientChoice = '';
+                    c.send(JSON.stringify({
+                        command: 'next',
+                    }));
+                }
+            } else {
+                ws.close();
             }
         } else if (message.command === 'host_reveal') {
-            let sess = sessions[ws.sessionId];
-            let reveal_data = sess.clients.map(c => {
-                return {
-                    id: c.clientId,
-                    choice: c.clientChoice,
+            if (ws.sessionId in sessions) {
+                let sess = sessions[ws.sessionId];
+                let reveal_data = sess.clients.map(c => {
+                    return {
+                        id: c.clientId,
+                        choice: c.clientChoice,
+                    }
+                });
+                for (let c of sess.clients) {
+                    c.send(JSON.stringify({
+                        command: 'reveal',
+                        data: reveal_data,
+                    }));
                 }
-            });
-            for (let c of sess.clients) {
-                c.send(JSON.stringify({
-                    command: 'reveal',
-                    data: reveal_data,
-                }));
+            } else {
+                ws.close();
             }
         } else if (message.command === 'join_session') {
             let sessionId = message.id;
@@ -76,7 +89,7 @@ wss.on('connection', (ws) => {
                 sess.clients.push(ws);
                 ws.sessionId = sessionId;
                 ws.host = false;
-                ws.clientName = message.name;
+                ws.clientName = message.name.substr(0, 16);
                 ws.clientId = idCounter++;
                 ws.clientChoice = '';
                 ws.send(JSON.stringify({
@@ -87,34 +100,54 @@ wss.on('connection', (ws) => {
                 ws.close();
             }
         } else if (message.command === 'choose') {
-            let sess = sessions[ws.sessionId];
-            ws.clientChoice = message.choice;
-            sess.host.send(JSON.stringify({
-                command: 'host_choice',
-                id: ws.clientId,
-                choice: message.choice,
-            }));
+            if (ws.sessionId in sessions) {
+                let sess = sessions[ws.sessionId];
+                let choice = message.choice;
+                let hmac = message.hmac;
+                let calchmac = crypto.createHmac('sha256', process.env.SECRET).update(choice).digest('hex');
+
+                if (hmac !== calchmac) {
+                    ws.clientChoice = "Hackerman!";
+                    sess.host.send(JSON.stringify({
+                        command: 'host_choice',
+                        id: ws.clientId,
+                        choice: ws.clientChoice,
+                    }));
+                    ws.send(JSON.stringify({
+                        command: 'hackerman',
+                    }));
+                } else {
+                    ws.clientChoice = choice;
+                    sess.host.send(JSON.stringify({
+                        command: 'host_choice',
+                        id: ws.clientId,
+                        choice: ws.clientChoice,
+                    }));
+                }
+            } else {
+                ws.close();
+            }
+        } else {
+            ws.close();
         }
     });
 
     ws.on('close', () => {
-        if (ws.sessionId !== undefined) {
+        if (ws.sessionId in sessions) {
+            let sess = sessions[ws.sessionId];
             if (ws.host) {
-                for (let w of sessions[ws.sessionId].clients) {
+                for (let w of sess.clients) {
                     w.close();
                 }
                 console.log('delete session: ' + ws.sessionId);
                 delete sessions[ws.sessionId];
             } else {
-                let sess = sessions[ws.sessionId];
-                if (sess !== undefined) {
-                    let i = sess.clients.indexOf(ws);
-                    if (i > -1) {
-                        sess.clients.splice(i, 1);
-                    }
-
-                    sess.sendClients();
+                let i = sess.clients.indexOf(ws);
+                if (i > -1) {
+                    sess.clients.splice(i, 1);
                 }
+
+                sess.sendClients();
             }
         }
     });
